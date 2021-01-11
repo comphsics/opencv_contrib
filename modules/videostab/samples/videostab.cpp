@@ -89,6 +89,8 @@ void printHelp()
             "      Number of keypoints to find in each frame. The default is 1000.\n"
             "  --local-outlier-rejection=(yes|no)\n"
             "      Perform local outlier rejection. The default is no.\n\n"
+            "  --feature-masks=(file_path|no)\n"
+            "      Load masks from file. The default is no.\n\n"
             "  -sm=, --save-motions=(<file_path>|no)\n"
             "      Save estimated motions into file. The default is no.\n"
             "  -lm=, --load-motions=(<file_path>|no)\n"
@@ -123,9 +125,9 @@ void printHelp()
             "  -bm=, --border-mode=(replicate|reflect|const)\n"
             "      Set border extrapolation mode. The default is replicate.\n\n"
             "  --mosaic=(yes|no)\n"
-            "      Do consistent mosaicing. The default is no.\n"
+            "      Do consistent mosaicking. The default is no.\n"
             "  --mosaic-stdev=<float_number>\n"
-            "      Consistent mosaicing stdev threshold. The default is 10.0.\n\n"
+            "      Consistent mosaicking stdev threshold. The default is 10.0.\n\n"
             "  -mi=, --motion-inpaint=(yes|no)\n"
             "      Do motion inpainting (requires CUDA support). The default is no.\n"
             "  --mi-dist-thresh=<float_number>\n"
@@ -297,6 +299,7 @@ int main(int argc, const char **argv)
                 "{  nkps                    | 1000 | }"
                 "{  extra-kps               | 0 | }"
                 "{  local-outlier-rejection | no | }"
+                "{  feature-masks           | no | }"
                 "{ sm  save-motions         | no | }"
                 "{ lm  load-motions         | no | }"
                 "{ r  radius                | 15 | }"
@@ -460,6 +463,19 @@ int main(int argc, const char **argv)
 
         stabilizer->setFrameSource(source);
         stabilizer->setMotionEstimator(motionEstBuilder->build());
+
+        if (arg("feature-masks") != "no")
+        {
+            Ptr<MaskFrameSource> maskSource = makePtr<MaskFrameSource>(
+                makePtr<VideoFileSource>(arg("feature-masks")));
+            std::function<void(Mat&)> maskCallback = [](Mat & inputFrame)
+            {
+                cv::cvtColor(inputFrame, inputFrame, cv::COLOR_BGR2GRAY);
+                threshold(inputFrame, inputFrame, 127, 255, THRESH_BINARY);
+            };
+            maskSource->setMaskCallback(maskCallback);
+            stabilizer->setMaskSource(maskSource);
+        }
 
         // cast stabilizer to simple frame source interface to read stabilized frames
         stabilizedFrames.reset(dynamic_cast<IFrameSource*>(stabilizer));
